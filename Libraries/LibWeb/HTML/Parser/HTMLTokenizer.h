@@ -212,7 +212,7 @@ private:
     HTMLToken m_current_token;
     StringBuilder m_current_builder;
 
-    NamedCharacterReferenceMatcher m_named_character_reference_matcher;
+    size_t m_ampersand_offset { 0 };
 
     Optional<ByteString> m_last_emitted_start_tag_name;
 
