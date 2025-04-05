@@ -10,10 +10,10 @@
 #include <AK/GenericShorthands.h>
 #include <AK/SourceLocation.h>
 #include <LibTextCodec/Decoder.h>
-#include <LibWeb/HTML/Parser/Entities.h>
 #include <LibWeb/HTML/Parser/HTMLParser.h>
 #include <LibWeb/HTML/Parser/HTMLToken.h>
 #include <LibWeb/HTML/Parser/HTMLTokenizer.h>
+#include <LibWeb/HTML/Parser/BlinkEntityParser.h>
 #include <LibWeb/Namespace.h>
 #include <string.h>
 
@@ -1680,7 +1680,7 @@ _StartOfFunction:
 
                 ON_ASCII_ALPHANUMERIC
                 {
-                    m_named_character_reference_matcher = {};
+                    m_ampersand_offset = m_utf8_view.byte_offset_of(m_prev_utf8_iterator);
                     RECONSUME_IN(NamedCharacterReference);
                 }
                 ON('#')
@@ -1699,48 +1699,61 @@ _StartOfFunction:
             // 13.2.5.73 Named character reference state, https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
             BEGIN_STATE(NamedCharacterReference)
             {
-                if (current_input_character.has_value()) {
-                    if (m_named_character_reference_matcher.try_consume_code_point(current_input_character.value())) {
-                        m_temporary_buffer.append(current_input_character.value());
-                        continue;
-                    } else {
-                        DONT_CONSUME_NEXT_INPUT_CHARACTER;
+                dbgln("NamedChracterReference consumed_as_part_of_an_attribute: {}", consumed_as_part_of_an_attribute());
+                DecodedHTMLEntity decoded_entity;
+                bool not_enough_characters = false;
+                size_t entity_length = 0;
+                size_t overconsumed_characters = 0;
+                bool success = false;
+                size_t available_source_length = m_decoded_input.length();
+                if (stop_at_insertion_point == StopAtInsertionPoint::Yes
+                    && m_insertion_point.defined) {
+                    available_source_length = m_insertion_point.position;
+                }
+                VERIFY(available_source_length >= m_ampersand_offset);
+                auto remaining_source = m_decoded_input.substring_view(m_ampersand_offset, available_source_length - m_ampersand_offset);
+                dbgln("remaining source: {}", remaining_source);
+                auto at_eof = !current_input_character.has_value();
+                
+                success = ConsumeHTMLEntity(remaining_source, decoded_entity, at_eof, not_enough_characters, entity_length, overconsumed_characters);
+                if (not_enough_characters) {
+                    dbgln("not enough characters");
+                    continue;
+                }
+
+                auto current_byte_offset = m_utf8_view.byte_offset_of(m_utf8_iterator);
+                auto after_entity_offset = m_ampersand_offset + entity_length;
+                if (after_entity_offset > current_byte_offset) {
+                    skip(after_entity_offset - current_byte_offset);
+                } else if (after_entity_offset < current_byte_offset) {
+                    restore_to(m_utf8_view.iterator_at_byte_offset_without_validation(after_entity_offset));
+                }
+
+                if (success) {
+                    auto entity_slice = remaining_source.substring_view(0, entity_length);
+                    dbgln("entity_slice: {}", entity_slice);
+                    for (auto it = entity_slice.begin(); it != entity_slice.end(); it++) {
+                        m_temporary_buffer.append(*it);
                     }
-                }
 
-                // Only consume the characters within the longest match. It's possible that we've overconsumed code points,
-                // though, so we want to backtrack to the longest match found. For example, `&notindo` (which could still
-                // have lead to `&notindot;`) would need to backtrack back to `&not`),
-                auto overconsumed_code_points = m_named_character_reference_matcher.overconsumed_code_points();
-                if (overconsumed_code_points > 0) {
-                    auto current_byte_offset = m_utf8_view.byte_offset_of(m_utf8_iterator);
-                    // All consumed code points during character reference matching are guaranteed to be
-                    // within the ASCII range, so they are always 1 byte wide.
-                    restore_to(m_utf8_view.iterator_at_byte_offset_without_validation(current_byte_offset - overconsumed_code_points));
-                    m_temporary_buffer.resize_and_keep_capacity(m_temporary_buffer.size() - overconsumed_code_points);
-                }
-
-                auto mapped_codepoints = m_named_character_reference_matcher.code_points();
-                // If there is a match
-                if (mapped_codepoints.has_value()) {
-                    if (consumed_as_part_of_an_attribute() && !m_named_character_reference_matcher.last_match_ends_with_semicolon()) {
+                    if (consumed_as_part_of_an_attribute() && !entity_slice.ends_with(';')) {
                         auto next_code_point = peek_code_point(0, stop_at_insertion_point);
                         if (next_code_point.has_value() && (next_code_point.value() == '=' || is_ascii_alphanumeric(next_code_point.value()))) {
+                            dbgln("legacy nonsense");
                             FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
                             SWITCH_TO_RETURN_STATE;
                         }
                     }
 
-                    if (!m_named_character_reference_matcher.last_match_ends_with_semicolon()) {
+                    if (!entity_slice.ends_with(';')) {
                         log_parse_error();
                     }
 
                     m_temporary_buffer.clear_with_capacity();
-                    m_temporary_buffer.append(mapped_codepoints.value().first);
-                    auto second_codepoint = named_character_reference_second_codepoint_value(mapped_codepoints.value().second);
-                    if (second_codepoint.has_value()) {
-                        m_temporary_buffer.append(second_codepoint.value());
-                    }
+                    for (unsigned i = 0; i < decoded_entity.length; ++i)
+                      m_temporary_buffer.append(decoded_entity.data[i]);
+
+                    dbgln("{}", m_temporary_buffer);
 
                     FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
                     SWITCH_TO_RETURN_STATE;

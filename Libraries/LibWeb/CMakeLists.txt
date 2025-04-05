@@ -473,6 +473,9 @@ set(SOURCES
     HTML/Parser/HTMLParser.cpp
     HTML/Parser/HTMLToken.cpp
     HTML/Parser/HTMLTokenizer.cpp
+    HTML/Parser/BlinkEntityParser.cpp
+    HTML/Parser/BlinkEntitySearch.cpp
+    HTML/Parser/BlinkEntityTable.cpp
     HTML/Parser/ListOfActiveFormattingElements.cpp
     HTML/Parser/StackOfOpenElements.cpp
     HTML/Path2D.cpp
