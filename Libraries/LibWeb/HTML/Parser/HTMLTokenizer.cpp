@@ -1700,20 +1700,22 @@ _StartOfFunction:
             BEGIN_STATE(NamedCharacterReference)
             {
                 dbgln("NamedChracterReference consumed_as_part_of_an_attribute: {}", consumed_as_part_of_an_attribute());
+                dbgln("current_input_character: {}", current_input_character);
                 DecodedHTMLEntity decoded_entity;
                 bool not_enough_characters = false;
                 size_t entity_length = 0;
                 size_t overconsumed_characters = 0;
                 bool success = false;
                 size_t available_source_length = m_decoded_input.length();
-                if (stop_at_insertion_point == StopAtInsertionPoint::Yes
-                    && m_insertion_point.defined) {
+                if (stop_at_insertion_point == StopAtInsertionPoint::Yes && m_insertion_point.defined) {
                     available_source_length = m_insertion_point.position;
                 }
+                dbgln("available_source_length: {}", available_source_length);
                 VERIFY(available_source_length >= m_ampersand_offset);
                 auto remaining_source = m_decoded_input.substring_view(m_ampersand_offset, available_source_length - m_ampersand_offset);
                 dbgln("remaining source: {}", remaining_source);
                 auto at_eof = !current_input_character.has_value();
+                dbgln("at_eof: {}", at_eof);
                 
                 success = ConsumeHTMLEntity(remaining_source, decoded_entity, at_eof, not_enough_characters, entity_length, overconsumed_characters);
                 if (not_enough_characters) {
