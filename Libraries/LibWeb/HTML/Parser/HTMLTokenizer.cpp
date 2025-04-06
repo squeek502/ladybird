@@ -1699,8 +1699,6 @@ _StartOfFunction:
             // 13.2.5.73 Named character reference state, https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
             BEGIN_STATE(NamedCharacterReference)
             {
-                dbgln("NamedChracterReference consumed_as_part_of_an_attribute: {}", consumed_as_part_of_an_attribute());
-                dbgln("current_input_character: {}", current_input_character);
                 DecodedHTMLEntity decoded_entity;
                 bool not_enough_characters = false;
                 size_t entity_length = 0;
@@ -1710,16 +1708,12 @@ _StartOfFunction:
                 if (stop_at_insertion_point == StopAtInsertionPoint::Yes && m_insertion_point.defined) {
                     available_source_length = m_insertion_point.position;
                 }
-                dbgln("available_source_length: {}", available_source_length);
                 VERIFY(available_source_length >= m_ampersand_offset);
                 auto remaining_source = m_decoded_input.substring_view(m_ampersand_offset, available_source_length - m_ampersand_offset);
-                dbgln("remaining source: {}", remaining_source);
                 auto at_eof = !current_input_character.has_value();
-                dbgln("at_eof: {}", at_eof);
                 
                 success = ConsumeHTMLEntity(remaining_source, decoded_entity, at_eof, not_enough_characters, entity_length, overconsumed_characters);
                 if (not_enough_characters) {
-                    dbgln("not enough characters");
                     continue;
                 }
 
@@ -1733,7 +1727,6 @@ _StartOfFunction:
 
                 if (success) {
                     auto entity_slice = remaining_source.substring_view(0, entity_length);
-                    dbgln("entity_slice: {}", entity_slice);
                     for (auto it = entity_slice.begin(); it != entity_slice.end(); it++) {
                         m_temporary_buffer.append(*it);
                     }
@@ -1741,7 +1734,6 @@ _StartOfFunction:
                     if (consumed_as_part_of_an_attribute() && !entity_slice.ends_with(';')) {
                         auto next_code_point = peek_code_point(0, stop_at_insertion_point);
                         if (next_code_point.has_value() && (next_code_point.value() == '=' || is_ascii_alphanumeric(next_code_point.value()))) {
-                            dbgln("legacy nonsense");
                             FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
                             SWITCH_TO_RETURN_STATE;
                         }
@@ -1754,8 +1746,6 @@ _StartOfFunction:
                     m_temporary_buffer.clear_with_capacity();
                     for (unsigned i = 0; i < decoded_entity.length; ++i)
                       m_temporary_buffer.append(decoded_entity.data[i]);
-
-                    dbgln("{}", m_temporary_buffer);
 
                     FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
                     SWITCH_TO_RETURN_STATE;
