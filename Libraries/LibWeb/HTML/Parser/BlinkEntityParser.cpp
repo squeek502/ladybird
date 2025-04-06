@@ -69,8 +69,8 @@ bool ConsumeNamedEntity(StringView source,
   // Character reference ends in ';', so if the last character is ';' then
   // don't treat it as not enough characters (because no additional characters
   // will change the result).
-  not_enough_characters = cc_i == source.length() && cc != u';';
-  if (!at_eof && not_enough_characters) {
+  not_enough_characters = !at_eof && cc_i == source.length() && cc != u';';
+  if (not_enough_characters) {
     // We can't decide on an entity because there might be a longer entity
     // that we could match if we had more data.
     overconsumed_characters = consumed_characters.size(); // UnconsumeCharacters(source, consumed_characters);
