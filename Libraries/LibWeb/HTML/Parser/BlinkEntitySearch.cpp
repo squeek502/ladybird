@@ -102,18 +102,13 @@ void HTMLEntitySearch::Advance(u16 next_character) {
     // Get the subrange where `next_character` matches at the end of the
     // current prefix (index == `current_length_`).
 
-    dbgln("{}: {}-{}:{}", next_character, range_.begin().index(), range_.end().index(), current_length_);
-
     // range_ = std::ranges::equal_range(range_, next_character, std::less{},
     //                                   projector);
     auto lower = lower_bound(range_, current_length_, next_character);
     auto upper = upper_bound(range_, current_length_, next_character);
-    dbgln(" -> {}-{}", lower.index(), upper.index());
     range_ = range_.slice(lower.index(), upper.index() - lower.index());
-    dbgln("range length: {}", range_.size());
     for (auto it = range_.begin(); it != range_.end(); ++it) {
       auto byte_string = ByteString((const char*)HTMLEntityTable::EntityString(*it).data(), HTMLEntityTable::EntityString(*it).size());
-      dbgln("{}", byte_string);
     }
   }
   if (range_.is_empty()) {
