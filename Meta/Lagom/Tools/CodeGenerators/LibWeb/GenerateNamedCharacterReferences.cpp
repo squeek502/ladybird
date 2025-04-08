@@ -6,6 +6,7 @@
 
 #include "GeneratorUtil.h"
 #include <AK/Array.h>
+#include <AK/CharacterTypes.h>
 #include <AK/FixedArray.h>
 #include <AK/SourceGenerator.h>
 #include <AK/StringBuilder.h>
@@ -130,6 +131,7 @@ struct NamedCharacterReferenceCodepoints {
 };
 static_assert(sizeof(NamedCharacterReferenceCodepoints) == 4);
 
+u16 named_character_reference_first_char_unique_index(u8 index);
 u16 named_character_reference_child_index(u16 node_index);
 bool named_character_reference_is_end_of_word(u16 node_index);
 Optional<NamedCharacterReferenceCodepoints> named_character_reference_codepoints_from_unique_index(u16 unique_index);
@@ -462,6 +464,32 @@ static DafsaNode g_named_character_reference_dafsa[] = {
     }
 
     generator.append(R"~~~(};
+
+static u16 g_named_character_reference_first_char_unique_indexes[] = {
+)~~~");
+
+    auto num_children = dafsa_builder.root()->num_direct_children();
+    VERIFY(num_children == 52); // A-Z, a-z exactly
+    u16 unique_index_tally = 0;
+    for (u8 c = 0; c < 128; c++) {
+        if (dafsa_builder.root()->children().at(c) == nullptr)
+            continue;
+        VERIFY(AK::is_ascii_alpha(c));
+        auto child = dafsa_builder.root()->children().at(c);
+
+        auto member_generator = generator.fork();
+        member_generator.set("number", String::number(unique_index_tally));
+        member_generator.append(R"~~~(    @number@,
+)~~~");
+
+        unique_index_tally += child->number();
+    }
+
+    generator.append(R"~~~(};
+
+u16 named_character_reference_first_char_unique_index(u8 index) {
+    return g_named_character_reference_first_char_unique_indexes[index];
+}
 
 u16 named_character_reference_child_index(u16 node_index) {
     return g_named_character_reference_dafsa[node_index].child_index;
