@@ -93,6 +93,8 @@ namespace Web::HTML {
     __ENUMERATE_TOKENIZER_STATE(CDATASectionEnd)                          \
     __ENUMERATE_TOKENIZER_STATE(CharacterReference)                       \
     __ENUMERATE_TOKENIZER_STATE(NamedCharacterReference)                  \
+    __ENUMERATE_TOKENIZER_STATE(NamedCharacterReferenceHiLoLookup)        \
+    __ENUMERATE_TOKENIZER_STATE(NamedCharacterReferenceTail)              \
     __ENUMERATE_TOKENIZER_STATE(AmbiguousAmpersand)                       \
     __ENUMERATE_TOKENIZER_STATE(NumericCharacterReference)                \
     __ENUMERATE_TOKENIZER_STATE(HexadecimalCharacterReferenceStart)       \
@@ -212,7 +214,11 @@ private:
     HTMLToken m_current_token;
     StringBuilder m_current_builder;
 
-    NamedCharacterReferenceMatcher m_named_character_reference_matcher;
+    int32_t m_ent_col;
+    int32_t m_lo;
+    int32_t m_hi;
+    int32_t m_candidate;
+    u16 m_char_ref_buf_mark;
 
     Optional<ByteString> m_last_emitted_start_tag_name;
 
