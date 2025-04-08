@@ -331,7 +331,7 @@ static u16 write_children(NonnullRefPtr<Node> node, SourceGenerator& generator, 
     for (u8 c = 0; c < 128; c++) {
         if (node->children().at(c) == nullptr)
             continue;
-        auto child = node->children().at(c).release_nonnull();
+        auto child = NonnullRefPtr(*node->children().at(c));
         auto is_last_child = child_i == num_children - 1;
 
         if (!child_indexes.contains(child.ptr())) {
