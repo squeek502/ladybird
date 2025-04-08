@@ -14,14 +14,12 @@ namespace Web::HTML {
 bool NamedCharacterReferenceMatcher::try_consume_ascii_char(u8 c)
 {
     if (m_node_index == 0) {
-        if (is_ascii_alpha(c)) {
-            auto index = c <= 'Z' ? c - 'A' : c - 'a' + 26;
-            m_node_index = index + 1; // + 1 because of the the root node
-            m_overconsumed_code_points++;
-            m_pending_unique_index = named_character_reference_first_char_unique_index(index);
-            return true;
-        }
-        return false;
+        ASSERT(is_ascii_alpha(c));
+        auto index = c <= 'Z' ? c - 'A' : c - 'a' + 26;
+        m_node_index = index + 1; // + 1 because of the the root node
+        m_overconsumed_code_points++;
+        m_pending_unique_index = named_character_reference_first_char_unique_index(index);
+        return true;
     }
     auto child_index = named_character_reference_child_index(m_node_index);
     auto maybe_updated_index = named_character_reference_find_sibling_and_update_unique_index(child_index, c, m_pending_unique_index);

@@ -1678,7 +1678,12 @@ _StartOfFunction:
                 m_temporary_buffer.clear();
                 m_temporary_buffer.append('&');
 
-                ON_ASCII_ALPHANUMERIC
+                ON_ASCII_DIGIT
+                {
+                    FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
+                    RECONSUME_IN(AmbiguousAmpersand);
+                }
+                ON_ASCII_ALPHA
                 {
                     m_named_character_reference_matcher = {};
                     RECONSUME_IN(NamedCharacterReference);
