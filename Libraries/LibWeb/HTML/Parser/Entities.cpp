@@ -6,6 +6,7 @@
 
 #include <AK/CharacterTypes.h>
 #include <AK/StringView.h>
+#include <AK/BinarySearch.h>
 #include <LibWeb/HTML/Parser/Entities.h>
 #include <LibWeb/HTML/Parser/NamedCharacterReferences.h>
 
@@ -13,26 +14,41 @@ namespace Web::HTML {
 
 bool NamedCharacterReferenceMatcher::try_consume_ascii_char(u8 c)
 {
-    if (m_node_index == 0) {
-        ASSERT(is_ascii_alpha(c));
-        auto index = c <= 'Z' ? c - 'A' : c - 'a' + 26;
-        m_node_index = index + 1; // + 1 because of the the root node
+    if (m_children_to_check.has_value()) {
+        auto* match = binary_search(
+            m_children_to_check.value(),
+            c,
+            nullptr,
+            [](auto& c, auto& data) -> int {
+                return (int)c - (int)data.character;
+            });
+        if (!match) return false;
+
+        auto absolute_index = match - g_named_character_reference_chars;
+        m_pending_unique_index += g_named_character_reference_numbers[absolute_index].number;
         m_overconsumed_code_points++;
-        m_pending_unique_index = named_character_reference_first_char_unique_index(index);
+
+        if (match->end_of_word) {
+            m_pending_unique_index += 1;
+            m_last_matched_unique_index = m_pending_unique_index;
+            m_ends_with_semicolon = c == ';';
+            m_overconsumed_code_points = 0;
+        }
+
+        auto child_data = g_named_character_reference_children[absolute_index];
+        m_children_to_check = ReadonlySpan<CharData>(&g_named_character_reference_chars[child_data.child_index], child_data.children_len);
         return true;
-    }
-    auto child_index = named_character_reference_child_index(m_node_index);
-    auto maybe_updated_index = named_character_reference_find_sibling_and_update_unique_index(child_index, c, m_pending_unique_index);
-    if (!maybe_updated_index.has_value())
+    } else {
+        if (AK::is_ascii_alpha(c)) {
+            auto index = c <= 'Z' ? c - 'A' : c - 'a' + 26;
+            auto data = g_named_character_reference_first_layer[index];
+            m_children_to_check = ReadonlySpan<CharData>(&g_named_character_reference_chars[data.child_index], data.children_len);
+            m_overconsumed_code_points++;
+            m_pending_unique_index = data.number;
+            return true;
+        }
         return false;
-    m_overconsumed_code_points++;
-    m_node_index = maybe_updated_index.value();
-    if (currently_matches()) {
-        m_last_matched_unique_index = m_pending_unique_index;
-        m_ends_with_semicolon = c == ';';
-        m_overconsumed_code_points = 0;
     }
-    return true;
 }
 
 }

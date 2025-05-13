@@ -131,11 +131,53 @@ struct NamedCharacterReferenceCodepoints {
 };
 static_assert(sizeof(NamedCharacterReferenceCodepoints) == 4);
 
-u16 named_character_reference_first_char_unique_index(u8 index);
-u16 named_character_reference_child_index(u16 node_index);
-bool named_character_reference_is_end_of_word(u16 node_index);
+struct FirstLayerNode {
+    // Really only needs 12 bits.
+    u16 number;
+    u16 child_index : 10;
+    u8 children_len : 5;
+};
+static_assert(sizeof(FirstLayerNode) == 4);
+
+struct CharData {
+    // The actual alphabet of characters used in the list of named character references only
+    // includes 61 unique characters ('1'...'8', ';', 'a'...'z', 'A'...'Z'), but we have
+    // bits to spare and encoding this as a `u7` allows us to avoid the need for converting
+    // between an `enum(u6)` containing only the alphabet and the actual `u7` character value.
+    u8 character : 7;
+    bool end_of_word : 1;
+};
+static_assert(sizeof(CharData) == 1);
+
+struct NumberData {
+    // Nodes are numbered with "an integer which gives the number of words that
+    // would be accepted by the automaton starting from that state." This numbering
+    // allows calculating "a one-to-one correspondence between the integers 1 to L
+    // (L is the number of words accepted by the automaton) and the words themselves."
+    //
+    // Essentially, this allows us to have a minimal perfect hashing scheme such that
+    // it's possible to store & lookup the codepoint transformations of each named character
+    // reference using a separate array.
+    //
+    // Empirically, the largest number in our DAFSA is 168, so all number values fit in a u8.
+    u8 number;
+};
+static_assert(sizeof(NumberData) == 1);
+
+struct ChildData {
+    // Index of the first child of this node.
+    // There are 3872 nodes in our DAFSA, so all indexes can fit in a u12.
+    u16 child_index : 12;
+    u8 children_len : 4;
+};
+static_assert(sizeof(ChildData) == 2);
+
+extern CharData g_named_character_reference_chars[];
+extern NumberData g_named_character_reference_numbers[];
+extern ChildData g_named_character_reference_children[];
+extern FirstLayerNode g_named_character_reference_first_layer[];
+
 Optional<NamedCharacterReferenceCodepoints> named_character_reference_codepoints_from_unique_index(u16 unique_index);
-Optional<u16> named_character_reference_find_sibling_and_update_unique_index(u16 first_child_index, u8 character, u16& unique_index);
 
 } // namespace Web::HTML
 
@@ -325,16 +367,21 @@ private:
     StringView m_previous_word = { m_previous_word_buf, 0 };
 };
 
-static u16 write_children(NonnullRefPtr<Node> node, SourceGenerator& generator, Vector<NonnullRefPtr<Node>>& queue, HashMap<Node*, u16>& child_indexes, u16 first_available_index)
+struct NodeData {
+    u8 character;
+    u8 number;
+    bool end_of_word;
+    u16 child_index;
+    u8 children_len;
+};
+
+static u16 queue_children(const NonnullRefPtr<Node>& node, Vector<NonnullRefPtr<Node>>& queue, HashMap<Node*, u16>& child_indexes, u16 first_available_index)
 {
     auto current_available_index = first_available_index;
-    auto num_children = node->num_direct_children();
-    u16 child_i = 0;
     for (u8 c = 0; c < 128; c++) {
         if (node->children().at(c) == nullptr)
             continue;
         auto child = NonnullRefPtr(*node->children().at(c));
-        auto is_last_child = child_i == num_children - 1;
 
         if (!child_indexes.contains(child.ptr())) {
             auto child_num_children = child->num_direct_children();
@@ -344,20 +391,48 @@ static u16 write_children(NonnullRefPtr<Node> node, SourceGenerator& generator, 
             }
             queue.append(child);
         }
-
-        auto member_generator = generator.fork();
-        member_generator.set("char", StringView(&c, 1));
-        member_generator.set("number", String::number(child->number()));
-        member_generator.set("end_of_word", MUST(String::formatted("{}", child->is_terminal())));
-        member_generator.set("end_of_list", MUST(String::formatted("{}", is_last_child)));
-        auto child_index = child_indexes.get(child).value_or(0);
-        member_generator.set("child_index", String::number(child_index));
-        member_generator.append(R"~~~(    { '@char@', @number@, @end_of_word@, @end_of_list@, @child_index@ },
-)~~~");
-
-        child_i++;
     }
     return current_available_index;
+}
+
+static u16 write_children_data(const NonnullRefPtr<Node>& node, Vector<NodeData>& node_data, Vector<NonnullRefPtr<Node>>& queue, HashMap<Node*, u16>& child_indexes, u16 first_available_index)
+{
+    auto current_available_index = first_available_index;
+    u8 unique_index_tally = 0;
+    for (u8 c = 0; c < 128; c++) {
+        if (node->children().at(c) == nullptr)
+            continue;
+        auto child = NonnullRefPtr(*node->children().at(c));
+        auto child_num_children = child->num_direct_children();
+
+        if (!child_indexes.contains(child.ptr())) {
+            if (child_num_children > 0) {
+                child_indexes.set(child, current_available_index);
+                current_available_index += child_num_children;
+            }
+            queue.append(child);
+        }
+
+        node_data.append({ c, unique_index_tally, child->is_terminal(), child_indexes.get(child).value_or(0), child_num_children });
+
+        unique_index_tally += child->number();
+    }
+    return current_available_index;
+}
+
+// Does not include the root node
+static void write_node_data(DafsaBuilder& dafsa_builder, Vector<NodeData>& node_data)
+{
+    Vector<NonnullRefPtr<Node>> queue;
+    HashMap<Node*, u16> child_indexes;
+
+    u16 first_available_index = 1;
+    first_available_index = queue_children(dafsa_builder.root(), queue, child_indexes, first_available_index);
+
+    while (queue.size() > 0) {
+        auto node = queue.take_first();
+        first_available_index = write_children_data(node, node_data, queue, child_indexes, first_available_index);
+    }
 }
 
 ErrorOr<void> generate_implementation_file(JsonObject& named_character_reference_data, Core::File& file)
@@ -414,114 +489,83 @@ static NamedCharacterReferenceCodepoints g_named_character_reference_codepoints_
 )~~~");
     }
 
+    Vector<NodeData> node_data;
+    write_node_data(dafsa_builder, node_data);
+
     generator.append(R"~~~(};
 
-struct DafsaNode {
-    // The actual alphabet of characters used in the list of named character references only
-    // includes 61 unique characters ('1'...'8', ';', 'a'...'z', 'A'...'Z'), but we have
-    // bits to spare and encoding this as a `u8` allows us to avoid the need for converting
-    // between an `enum(u6)` containing only the alphabet and the actual `u8` character value.
-    u8 character;
-    // Nodes are numbered with "an integer which gives the number of words that
-    // would be accepted by the automaton starting from that state." This numbering
-    // allows calculating "a one-to-one correspondence between the integers 1 to L
-    // (L is the number of words accepted by the automaton) and the words themselves."
-    //
-    // Essentially, this allows us to have a minimal perfect hashing scheme such that
-    // it's possible to store & lookup the codepoint transformations of each named character
-    // reference using a separate array.
-    //
-    // Empirically, the largest number in our DAFSA is 168, so all number values fit in a u8.
-    u8 number;
-    // If true, this node is the end of a valid named character reference.
-    // Note: This does not necessarily mean that this node does not have child nodes.
-    bool end_of_word : 1;
-    // If true, this node is the end of a sibling list.
-    // If false, then (index + 1) will contain the next sibling.
-    bool end_of_list : 1;
-    // Index of the first child of this node.
-    // There are 3872 nodes in our DAFSA, so all indexes could fit in a u12.
-    u16 child_index : 14;
-};
-static_assert(sizeof(DafsaNode) == 4);
-
-static DafsaNode g_named_character_reference_dafsa[] = {
-    { 0, 0, false, true, 1 },
+CharData g_named_character_reference_chars[] = {
+    { 0, false },
 )~~~");
 
-    Vector<NonnullRefPtr<Node>> queue;
-    HashMap<Node*, u16> child_indexes;
-
-    u16 first_available_index = dafsa_builder.root()->num_direct_children() + 1;
-
-    NonnullRefPtr<Node> node = dafsa_builder.root();
-    while (true) {
-        first_available_index = write_children(node, generator, queue, child_indexes, first_available_index);
-
-        if (queue.size() == 0)
-            break;
-        node = queue.take_first();
+    for (auto data : node_data) {
+        auto member_generator = generator.fork();
+        member_generator.set("char", StringView(&data.character, 1));
+        member_generator.set("end_of_word", MUST(String::formatted("{}", data.end_of_word)));
+        member_generator.append(R"~~~(    { '@char@', @end_of_word@ },
+)~~~");
     }
 
     generator.append(R"~~~(};
 
-static u16 g_named_character_reference_first_char_unique_indexes[] = {
+NumberData g_named_character_reference_numbers[] = {
+    { 0 },
+)~~~");
+
+    for (auto data : node_data) {
+        auto member_generator = generator.fork();
+        member_generator.set("number", String::number(data.number));
+        member_generator.append(R"~~~(    { @number@ },
+)~~~");
+    }
+
+    generator.append(R"~~~(};
+
+ChildData g_named_character_reference_children[] = {
+    { 0, 0 },
+)~~~");
+
+    for (auto data : node_data) {
+        auto member_generator = generator.fork();
+        member_generator.set("child_index", String::number(data.child_index));
+        member_generator.set("children_len", String::number(data.children_len));
+        member_generator.append(R"~~~(    { @child_index@, @children_len@ },
+)~~~");
+    }
+
+    generator.append(R"~~~(};
+
+FirstLayerNode g_named_character_reference_first_layer[] = {
 )~~~");
 
     auto num_children = dafsa_builder.root()->num_direct_children();
     VERIFY(num_children == 52); // A-Z, a-z exactly
     u16 unique_index_tally = 0;
+    u16 first_child_index = 1;
     for (u8 c = 0; c < 128; c++) {
         if (dafsa_builder.root()->children().at(c) == nullptr)
             continue;
         VERIFY(AK::is_ascii_alpha(c));
         auto child = dafsa_builder.root()->children().at(c);
+        auto child_num_children = child->num_direct_children();
 
         auto member_generator = generator.fork();
         member_generator.set("number", String::number(unique_index_tally));
-        member_generator.append(R"~~~(    @number@,
+        member_generator.set("child_index", String::number(first_child_index));
+        member_generator.set("children_len", String::number(child_num_children));
+        member_generator.append(R"~~~(    { @number@, @child_index@, @children_len@ },
 )~~~");
 
         unique_index_tally += child->number();
+        first_child_index += child_num_children;
     }
 
     generator.append(R"~~~(};
-
-u16 named_character_reference_first_char_unique_index(u8 index) {
-    return g_named_character_reference_first_char_unique_indexes[index];
-}
-
-u16 named_character_reference_child_index(u16 node_index) {
-    return g_named_character_reference_dafsa[node_index].child_index;
-}
-
-bool named_character_reference_is_end_of_word(u16 node_index) {
-    return g_named_character_reference_dafsa[node_index].end_of_word;
-}
 
 // Note: The unique index is 1-based.
 Optional<NamedCharacterReferenceCodepoints> named_character_reference_codepoints_from_unique_index(u16 unique_index) {
     if (unique_index == 0) return {};
     return g_named_character_reference_codepoints_lookup[unique_index - 1];
-}
-
-// Search `first_child_index` and siblings of `first_child_index` for a node with the value `character`.
-// If found, returns the index of the node within the `dafsa` array. Otherwise, returns `null`.
-// Updates `unique_index` as the array is traversed
-Optional<u16> named_character_reference_find_sibling_and_update_unique_index(u16 first_child_index, u8 character, u16& unique_index) {
-    auto index = first_child_index;
-    while (true) {
-        if (g_named_character_reference_dafsa[index].character < character) {
-            unique_index += g_named_character_reference_dafsa[index].number;
-        }
-        if (g_named_character_reference_dafsa[index].character == character) {
-            if (g_named_character_reference_dafsa[index].end_of_word) unique_index++;
-            return index;
-        }
-        if (g_named_character_reference_dafsa[index].end_of_list) return {};
-        index += 1;
-    }
-    VERIFY_NOT_REACHED();
 }
 
 } // namespace Web::HTML

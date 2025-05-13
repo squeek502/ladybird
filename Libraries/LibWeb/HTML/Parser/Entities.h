@@ -8,6 +8,7 @@
 
 #include <AK/Optional.h>
 #include <AK/Types.h>
+#include <AK/Span.h>
 #include <LibWeb/HTML/Parser/NamedCharacterReferences.h>
 
 namespace Web::HTML {
@@ -31,9 +32,6 @@ public:
     // Otherwise, the `node_index` is unchanged and the function returns false.
     bool try_consume_ascii_char(u8 c);
 
-    // Returns true if the current `node_index` is marked as the end of a word
-    bool currently_matches() const { return named_character_reference_is_end_of_word(m_node_index); }
-
     // Returns the code points associated with the last match, if any.
     Optional<NamedCharacterReferenceCodepoints> code_points() const { return named_character_reference_codepoints_from_unique_index(m_last_matched_unique_index); }
 
@@ -42,7 +40,7 @@ public:
     u8 overconsumed_code_points() const { return m_overconsumed_code_points; }
 
 private:
-    u16 m_node_index { 0 };
+    Optional<ReadonlySpan<CharData>> m_children_to_check;
     u16 m_last_matched_unique_index { 0 };
     u16 m_pending_unique_index { 0 };
     u8 m_overconsumed_code_points { 0 };
