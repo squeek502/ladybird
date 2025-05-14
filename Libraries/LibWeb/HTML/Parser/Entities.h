@@ -40,7 +40,7 @@ public:
     u8 overconsumed_code_points() const { return m_overconsumed_code_points; }
 
 private:
-    Optional<ReadonlySpan<CharData>> m_children_to_check;
+    Optional<ReadonlySpan<NamedCharacterReferenceNode>> m_children_to_check;
     u16 m_last_matched_unique_index { 0 };
     u16 m_pending_unique_index { 0 };
     u8 m_overconsumed_code_points { 0 };

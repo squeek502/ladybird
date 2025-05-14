@@ -139,17 +139,13 @@ struct FirstLayerNode {
 };
 static_assert(sizeof(FirstLayerNode) == 4);
 
-struct CharData {
+struct NamedCharacterReferenceNode {
     // The actual alphabet of characters used in the list of named character references only
     // includes 61 unique characters ('1'...'8', ';', 'a'...'z', 'A'...'Z'), but we have
     // bits to spare and encoding this as a `u7` allows us to avoid the need for converting
     // between an `enum(u6)` containing only the alphabet and the actual `u7` character value.
     u8 character : 7;
     bool end_of_word : 1;
-};
-static_assert(sizeof(CharData) == 1);
-
-struct NumberData {
     // Nodes are numbered with "an integer which gives the number of words that
     // would be accepted by the automaton starting from that state." This numbering
     // allows calculating "a one-to-one correspondence between the integers 1 to L
@@ -161,20 +157,14 @@ struct NumberData {
     //
     // Empirically, the largest number in our DAFSA is 168, so all number values fit in a u8.
     u8 number;
-};
-static_assert(sizeof(NumberData) == 1);
-
-struct ChildData {
     // Index of the first child of this node.
     // There are 3872 nodes in our DAFSA, so all indexes can fit in a u12.
     u16 child_index : 12;
     u8 children_len : 4;
 };
-static_assert(sizeof(ChildData) == 2);
+static_assert(sizeof(NamedCharacterReferenceNode) == 4);
 
-extern CharData g_named_character_reference_chars[];
-extern NumberData g_named_character_reference_numbers[];
-extern ChildData g_named_character_reference_children[];
+extern NamedCharacterReferenceNode g_named_character_reference_nodes[];
 extern FirstLayerNode g_named_character_reference_first_layer[];
 
 Optional<NamedCharacterReferenceCodepoints> named_character_reference_codepoints_from_unique_index(u16 unique_index);
@@ -494,42 +484,18 @@ static NamedCharacterReferenceCodepoints g_named_character_reference_codepoints_
 
     generator.append(R"~~~(};
 
-CharData g_named_character_reference_chars[] = {
-    { 0, false },
+NamedCharacterReferenceNode g_named_character_reference_nodes[] = {
+    { 0, false, 0, 0, 0 },
 )~~~");
 
     for (auto data : node_data) {
         auto member_generator = generator.fork();
         member_generator.set("char", StringView(&data.character, 1));
         member_generator.set("end_of_word", MUST(String::formatted("{}", data.end_of_word)));
-        member_generator.append(R"~~~(    { '@char@', @end_of_word@ },
-)~~~");
-    }
-
-    generator.append(R"~~~(};
-
-NumberData g_named_character_reference_numbers[] = {
-    { 0 },
-)~~~");
-
-    for (auto data : node_data) {
-        auto member_generator = generator.fork();
         member_generator.set("number", String::number(data.number));
-        member_generator.append(R"~~~(    { @number@ },
-)~~~");
-    }
-
-    generator.append(R"~~~(};
-
-ChildData g_named_character_reference_children[] = {
-    { 0, 0 },
-)~~~");
-
-    for (auto data : node_data) {
-        auto member_generator = generator.fork();
         member_generator.set("child_index", String::number(data.child_index));
         member_generator.set("children_len", String::number(data.children_len));
-        member_generator.append(R"~~~(    { @child_index@, @children_len@ },
+        member_generator.append(R"~~~(    { '@char@', @end_of_word@, @number@, @child_index@, @children_len@ },
 )~~~");
     }
 

@@ -24,8 +24,7 @@ bool NamedCharacterReferenceMatcher::try_consume_ascii_char(u8 c)
             });
         if (!match) return false;
 
-        auto absolute_index = match - g_named_character_reference_chars;
-        m_pending_unique_index += g_named_character_reference_numbers[absolute_index].number;
+        m_pending_unique_index += match->number;
         m_overconsumed_code_points++;
 
         if (match->end_of_word) {
@@ -35,14 +34,13 @@ bool NamedCharacterReferenceMatcher::try_consume_ascii_char(u8 c)
             m_overconsumed_code_points = 0;
         }
 
-        auto child_data = g_named_character_reference_children[absolute_index];
-        m_children_to_check = ReadonlySpan<CharData>(&g_named_character_reference_chars[child_data.child_index], child_data.children_len);
+        m_children_to_check = ReadonlySpan<NamedCharacterReferenceNode>(&g_named_character_reference_nodes[match->child_index], match->children_len);
         return true;
     } else {
         if (AK::is_ascii_alpha(c)) {
             auto index = c <= 'Z' ? c - 'A' : c - 'a' + 26;
             auto data = g_named_character_reference_first_layer[index];
-            m_children_to_check = ReadonlySpan<CharData>(&g_named_character_reference_chars[data.child_index], data.children_len);
+            m_children_to_check = ReadonlySpan<NamedCharacterReferenceNode>(&g_named_character_reference_nodes[data.child_index], data.children_len);
             m_overconsumed_code_points++;
             m_pending_unique_index = data.number;
             return true;
