@@ -48,50 +48,73 @@ static bool optional_less_than(Optional<u16> a, Optional<u16> b) {
   return b.has_value() && !a.has_value();
 }
 
-static Span<HTMLEntityTableEntry const>::Iterator lower_bound(Span<HTMLEntityTableEntry const>& range, u16 current_length, u16 next_character) {
-  ptrdiff_t count = range.end() - range.begin();
-  ptrdiff_t step;
-  Span<HTMLEntityTableEntry const>::Iterator it;
-  auto first = range.begin();
+static Span<HTMLEntityTableEntry const>::Iterator lower_bound(Span<HTMLEntityTableEntry const>::Iterator first, Span<HTMLEntityTableEntry const>::Iterator last, u16 current_length, u16 next_character) {
+  ptrdiff_t len = last - first;
 
-  while (count > 0) {
-    it = first;
-    step = count / 2;
-    it += step;
+  while (len > 0) {
+    auto half = len / 2;
+    auto middle = first;
+    middle += half;
 
-    auto val = entry_to_char(*it, current_length);
+    auto val = entry_to_char(*middle, current_length);
     if (optional_less_than(val, next_character)) {
-      first = ++it;
-      count -= step + 1;
+      first = middle;
+      ++first;
+      len = len - half - 1;
     } else {
-      count = step;
+      len = half;
     }
   }
 
   return first;
 }
 
-static Span<HTMLEntityTableEntry const>::Iterator upper_bound(Span<HTMLEntityTableEntry const>& range, u16 current_length, u16 next_character) {
-  ptrdiff_t count = range.end() - range.begin();
-  ptrdiff_t step;
-  Span<HTMLEntityTableEntry const>::Iterator it;
-  auto first = range.begin();
+static Span<HTMLEntityTableEntry const>::Iterator upper_bound(Span<HTMLEntityTableEntry const>::Iterator first, Span<HTMLEntityTableEntry const>::Iterator last, u16 current_length, u16 next_character) {
+  ptrdiff_t len = last - first;
 
-  while (count > 0) {
-    it = first;
-    step = count / 2;
-    it += step;
+  while (len > 0) {
+    auto half = len / 2;
+    auto middle = first;
+    middle += half;
 
-    auto val = entry_to_char(*it, current_length);
-    if (!optional_less_than(next_character, val)) {
-      first = ++it;
-      count -= step + 1;
+    auto val = entry_to_char(*middle, current_length);
+    if (optional_less_than(next_character, val)) {
+      len = half;
     } else {
-      count = step;
+      first = middle;
+      ++first;
+      len = len - half - 1;
     }
   }
 
   return first;
+}
+
+static Span<const HTMLEntityTableEntry> equal_range(Span<HTMLEntityTableEntry const>& range, u16 current_length, u16 next_character) {
+  ptrdiff_t len = range.end() - range.begin();
+  auto first = range.begin();
+
+  while (len > 0) {
+    auto half = len / 2;
+    auto middle = first;
+    middle += half;
+
+    auto val = entry_to_char(*middle, current_length);
+    if (optional_less_than(val, next_character)) {
+      first = middle;
+      ++first;
+      len = len - half - 1;
+    } else if (optional_less_than(next_character, val)) {
+      len = half;
+    } else {
+      auto left = lower_bound(first, middle, current_length, next_character);
+      first += len;
+      auto right = upper_bound(++middle, first, current_length, next_character);
+      return range.slice(left.index(), right - left);
+    }
+  }
+
+  return range.slice(first.index(), 0);
 }
 
 void HTMLEntitySearch::Advance(u16 next_character) {
@@ -104,12 +127,7 @@ void HTMLEntitySearch::Advance(u16 next_character) {
 
     // range_ = std::ranges::equal_range(range_, next_character, std::less{},
     //                                   projector);
-    auto lower = lower_bound(range_, current_length_, next_character);
-    auto upper = upper_bound(range_, current_length_, next_character);
-    range_ = range_.slice(lower.index(), upper.index() - lower.index());
-    for (auto it = range_.begin(); it != range_.end(); ++it) {
-      auto byte_string = ByteString((const char*)HTMLEntityTable::EntityString(*it).data(), HTMLEntityTable::EntityString(*it).size());
-    }
+    range_ = equal_range(range_, current_length_, next_character);
   }
   if (range_.is_empty()) {
     Fail();
