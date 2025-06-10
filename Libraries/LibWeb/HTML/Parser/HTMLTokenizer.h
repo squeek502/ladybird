@@ -214,11 +214,7 @@ private:
     HTMLToken m_current_token;
     StringBuilder m_current_builder;
 
-    int32_t m_ent_col;
-    int32_t m_lo;
-    int32_t m_hi;
-    int32_t m_candidate;
-    u16 m_char_ref_buf_mark;
+    NamedCharacterReferenceMatcher m_named_character_reference_matcher;
 
     Optional<ByteString> m_last_emitted_start_tag_name;
 

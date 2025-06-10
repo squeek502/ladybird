@@ -1681,6 +1681,7 @@ _StartOfFunction:
 
                 ON_ASCII_ALPHANUMERIC
                 {
+                    m_named_character_reference_matcher = {};
                     RECONSUME_IN(NamedCharacterReference);
                 }
                 ON('#')
@@ -1699,113 +1700,19 @@ _StartOfFunction:
             // 13.2.5.73 Named character reference state, https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
             BEGIN_STATE(NamedCharacterReference)
             {
-                if (current_input_character.has_value() && is_ascii_alpha(current_input_character.value())) {
-                    m_temporary_buffer.append(current_input_character.value());
-                    SWITCH_TO_WITH_UNCLEAN_BUILDER(NamedCharacterReferenceHiLoLookup);
-                } else {
-                    DONT_CONSUME_NEXT_INPUT_CHARACTER;
-                    FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
-                    SWITCH_TO_WITH_UNCLEAN_BUILDER(AmbiguousAmpersand);
-                }
-            }
-            END_STATE
-
-            BEGIN_STATE(NamedCharacterReferenceHiLoLookup)
-            {
-                i32 hilo = 0;
-                if (current_input_character.has_value() && current_input_character.value() <= 'z') {
-                    i32 const* row = nsHtml5NamedCharactersAccel::HILO_ACCEL[current_input_character.value()];
-                    if (row) {
-                        auto first_char = m_temporary_buffer.at(1);
-                        size_t index;
-                        // We know the first char has to be alphanumeric, so we just need to check lower/upper
-                        if (is_ascii_lower_alpha(first_char))
-                            index = first_char - 'a' + 26;
-                        else
-                            index = first_char - 'A';
-                        hilo = row[index];
-                    }
-                }
-                if (hilo) {
-                    m_temporary_buffer.append(current_input_character.value());
-                    m_lo = hilo & 0xFFFF;
-                    m_hi = hilo >> 16;
-                    m_ent_col = -1;
-                    m_candidate = -1;
-                    m_char_ref_buf_mark = 0;
-                    SWITCH_TO_WITH_UNCLEAN_BUILDER(NamedCharacterReferenceTail);
-                } else {
-                    DONT_CONSUME_NEXT_INPUT_CHARACTER;
-                    FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
-                    SWITCH_TO_WITH_UNCLEAN_BUILDER(AmbiguousAmpersand);
-                }
-            }
-            END_STATE
-
-            BEGIN_STATE(NamedCharacterReferenceTail)
-            {
-                auto c = current_input_character.value_or(0);
-
-                m_ent_col++;
-                for (;;) {
-                    if (m_hi < m_lo) {
-                        DONT_CONSUME_NEXT_INPUT_CHARACTER;
-                        goto outer_end;
-                    }
-                    if (m_ent_col == nsHtml5NamedCharacters::NAMES[m_lo].length()) {
-                        m_candidate = m_lo;
-                        m_char_ref_buf_mark = m_temporary_buffer.size(); // charRefBufLen;
-                        m_lo++;
-                    } else if (m_ent_col > nsHtml5NamedCharacters::NAMES[m_lo].length()) {
-                        DONT_CONSUME_NEXT_INPUT_CHARACTER;
-                        goto outer_end;
-                    } else if (c > nsHtml5NamedCharacters::NAMES[m_lo].charAt(m_ent_col)) {
-                        m_lo++;
+                if (current_input_character.has_value()) {
+                    if (m_named_character_reference_matcher.try_consume_code_point(current_input_character.value())) {
+                        m_temporary_buffer.append(current_input_character.value());
+                        continue;
                     } else {
-                        goto loloop_end;
-                    }
-                }
-            loloop_end:
-                for (;;) {
-                    if (m_hi < m_lo) {
                         DONT_CONSUME_NEXT_INPUT_CHARACTER;
-                        goto outer_end;
-                    }
-                    if (m_ent_col == nsHtml5NamedCharacters::NAMES[m_hi].length()) {
-                        goto hiloop_end;
-                    }
-                    if (m_ent_col > nsHtml5NamedCharacters::NAMES[m_hi].length()) {
-                        DONT_CONSUME_NEXT_INPUT_CHARACTER;
-                        goto outer_end;
-                    } else if (c < nsHtml5NamedCharacters::NAMES[m_hi].charAt(m_ent_col)) {
-                        m_hi--;
-                    } else {
-                        goto hiloop_end;
                     }
                 }
-            hiloop_end:
-                if (c == ';') {
-                    m_temporary_buffer.append(c);
-                    if (m_ent_col + 1 == nsHtml5NamedCharacters::NAMES[m_lo].length()) {
-                        m_candidate = m_lo;
-                        m_char_ref_buf_mark = m_temporary_buffer.size(); // charRefBufLen;
-                    }
-                    goto outer_end;
-                }
-                if (m_hi < m_lo) {
-                    DONT_CONSUME_NEXT_INPUT_CHARACTER;
-                    goto outer_end;
-                }
-                m_temporary_buffer.append(c);
-                continue;
 
-            outer_end:
                 // Only consume the characters within the longest match. It's possible that we've overconsumed code points,
                 // though, so we want to backtrack to the longest match found. For example, `&notindo` (which could still
                 // have lead to `&notindot;`) would need to backtrack back to `&not`),
-                //
-                // Subtract out the &
-                auto overconsumed_code_points = m_temporary_buffer.size() - max(m_char_ref_buf_mark, 1);
+                auto overconsumed_code_points = m_named_character_reference_matcher.overconsumed_code_points();
                 if (overconsumed_code_points > 0) {
                     auto current_byte_offset = m_utf8_view.byte_offset_of(m_utf8_iterator);
                     // All consumed code points during character reference matching are guaranteed to be
@@ -1814,10 +1721,10 @@ _StartOfFunction:
                     m_temporary_buffer.resize_and_keep_capacity(m_temporary_buffer.size() - overconsumed_code_points);
                 }
 
-                // has match
-                if (m_candidate != -1) {
-                    u32 last_character = m_temporary_buffer.last();
-                    if (consumed_as_part_of_an_attribute() && last_character != ';') {
+                auto mapped_codepoints = m_named_character_reference_matcher.code_points();
+                // If there is a match
+                if (mapped_codepoints.has_value()) {
+                    if (consumed_as_part_of_an_attribute() && !m_named_character_reference_matcher.last_match_ends_with_semicolon()) {
                         auto next_code_point = peek_code_point(0, stop_at_insertion_point);
                         if (next_code_point.has_value() && (next_code_point.value() == '=' || is_ascii_alphanumeric(next_code_point.value()))) {
                             FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
@@ -1825,21 +1732,15 @@ _StartOfFunction:
                         }
                     }
 
-                    if (last_character != ';') {
+                    if (!m_named_character_reference_matcher.last_match_ends_with_semicolon()) {
                         log_parse_error();
                     }
 
                     m_temporary_buffer.clear_with_capacity();
-                    const char16_t* val = nsHtml5NamedCharacters::VALUES[m_candidate];
-                    // Stored as UTF-16 code units, so we need to decode the code point
-                    // if the first code unit is a high surrogate
-                    if (val[0] >= 0xD800 && val[0] <= 0xDBFF) {
-                        u32 code_point = (0x10000 + ((val[0] & 0x03ff) << 10)) | (val[1] & 0x03ff);
-                        m_temporary_buffer.append(code_point);
-                    } else {
-                        m_temporary_buffer.append(val[0]);
-                        if (val[1])
-                            m_temporary_buffer.append(val[1]);
+                    m_temporary_buffer.append(mapped_codepoints.value().first);
+                    auto second_codepoint = named_character_reference_second_codepoint_value(mapped_codepoints.value().second);
+                    if (second_codepoint.has_value()) {
+                        m_temporary_buffer.append(second_codepoint.value());
                     }
 
                     FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
