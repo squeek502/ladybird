@@ -143,8 +143,18 @@ function (generate_html_implementation)
         arguments -j "${LIBWEB_INPUT_FOLDER}/HTML/Parser/Entities.json"
     )
 
+    invoke_generator(
+        "NamedCharacterReferencesBinarySearch.cpp"
+        Lagom::GenerateNamedCharacterReferencesBinarySearch
+        "${LIBWEB_INPUT_FOLDER}/HTML/Parser/Entities.json"
+        "HTML/Parser/NamedCharacterReferencesBinarySearch.h"
+        "HTML/Parser/NamedCharacterReferencesBinarySearch.cpp"
+        arguments -j "${LIBWEB_INPUT_FOLDER}/HTML/Parser/Entities.json"
+    )
+
     set(HTML_GENERATED_HEADERS
        "HTML/Parser/NamedCharacterReferences.h"
+       "HTML/Parser/NamedCharacterReferencesBinarySearch.h"
     )
     list(TRANSFORM HTML_GENERATED_HEADERS PREPEND "${CMAKE_CURRENT_BINARY_DIR}/")
     if (ENABLE_INSTALL_HEADERS)

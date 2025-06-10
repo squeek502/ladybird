@@ -118,6 +118,14 @@ public:
     };
     Optional<HTMLToken> next_token(StopAtInsertionPoint = StopAtInsertionPoint::No);
 
+    enum class NamedCharacterReferencesImplementation {
+        Dafsa,
+        DafsaBinarySearch,
+        Gecko,
+        Blink,
+    };
+    void set_named_character_reference_implementation(NamedCharacterReferencesImplementation impl);
+
     void set_parser(Badge<HTMLParser>, HTMLParser& parser) { m_parser = &parser; }
 
     void switch_to(Badge<HTMLParser>, State new_state);
@@ -212,7 +220,7 @@ private:
     HTMLToken m_current_token;
     StringBuilder m_current_builder;
 
-    NamedCharacterReferenceMatcher m_named_character_reference_matcher;
+    OwnPtr<NamedCharacterReferenceMatcher> m_named_character_reference_matcher;
 
     Optional<ByteString> m_last_emitted_start_tag_name;
 

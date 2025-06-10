@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include "AK/Assertions.h"
 #include <AK/CharacterTypes.h>
 #include <AK/Debug.h>
 #include <AK/GenericShorthands.h>
@@ -1680,7 +1681,7 @@ _StartOfFunction:
 
                 ON_ASCII_ALPHANUMERIC
                 {
-                    m_named_character_reference_matcher = {};
+                    m_named_character_reference_matcher->reset();
                     RECONSUME_IN(NamedCharacterReference);
                 }
                 ON('#')
@@ -1700,7 +1701,7 @@ _StartOfFunction:
             BEGIN_STATE(NamedCharacterReference)
             {
                 if (current_input_character.has_value()) {
-                    if (m_named_character_reference_matcher.try_consume_code_point(current_input_character.value())) {
+                    if (m_named_character_reference_matcher->try_consume_code_point(current_input_character.value())) {
                         m_temporary_buffer.append(current_input_character.value());
                         continue;
                     } else {
@@ -1711,7 +1712,7 @@ _StartOfFunction:
                 // Only consume the characters within the longest match. It's possible that we've overconsumed code points,
                 // though, so we want to backtrack to the longest match found. For example, `&notindo` (which could still
                 // have lead to `&notindot;`) would need to backtrack back to `&not`),
-                auto overconsumed_code_points = m_named_character_reference_matcher.overconsumed_code_points();
+                auto overconsumed_code_points = m_named_character_reference_matcher->overconsumed_code_points();
                 if (overconsumed_code_points > 0) {
                     auto current_byte_offset = m_utf8_view.byte_offset_of(m_utf8_iterator);
                     // All consumed code points during character reference matching are guaranteed to be
@@ -1720,10 +1721,10 @@ _StartOfFunction:
                     m_temporary_buffer.resize_and_keep_capacity(m_temporary_buffer.size() - overconsumed_code_points);
                 }
 
-                auto mapped_codepoints = m_named_character_reference_matcher.code_points();
+                auto mapped_codepoints = m_named_character_reference_matcher->code_points();
                 // If there is a match
                 if (mapped_codepoints.has_value()) {
-                    if (consumed_as_part_of_an_attribute() && !m_named_character_reference_matcher.last_match_ends_with_semicolon()) {
+                    if (consumed_as_part_of_an_attribute() && !m_named_character_reference_matcher->last_match_ends_with_semicolon()) {
                         auto next_code_point = peek_code_point(0, stop_at_insertion_point);
                         if (next_code_point.has_value() && (next_code_point.value() == '=' || is_ascii_alphanumeric(next_code_point.value()))) {
                             FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
@@ -1731,7 +1732,7 @@ _StartOfFunction:
                         }
                     }
 
-                    if (!m_named_character_reference_matcher.last_match_ends_with_semicolon()) {
+                    if (!m_named_character_reference_matcher->last_match_ends_with_semicolon()) {
                         log_parse_error();
                     }
 
@@ -2862,6 +2863,7 @@ HTMLTokenizer::HTMLTokenizer()
     m_utf8_iterator = m_utf8_view.begin();
     m_prev_utf8_iterator = m_utf8_view.begin();
     m_source_positions.empend(0u, 0u);
+    m_named_character_reference_matcher = make<NamedCharacterReferenceMatcherDafsa>();
 }
 
 HTMLTokenizer::HTMLTokenizer(StringView input, ByteString const& encoding)
@@ -2873,6 +2875,7 @@ HTMLTokenizer::HTMLTokenizer(StringView input, ByteString const& encoding)
     m_utf8_iterator = m_utf8_view.begin();
     m_prev_utf8_iterator = m_utf8_view.begin();
     m_source_positions.empend(0u, 0u);
+    m_named_character_reference_matcher = make<NamedCharacterReferenceMatcherDafsa>();
 }
 
 void HTMLTokenizer::insert_input_at_insertion_point(StringView input)
@@ -2965,6 +2968,26 @@ String HTMLTokenizer::consume_current_builder()
     auto string = m_current_builder.to_string_without_validation();
     m_current_builder.clear();
     return string;
+}
+
+void HTMLTokenizer::set_named_character_reference_implementation(HTMLTokenizer::NamedCharacterReferencesImplementation impl) {
+    m_named_character_reference_matcher.clear();
+    switch (impl) {
+    case HTMLTokenizer::NamedCharacterReferencesImplementation::Dafsa:
+        m_named_character_reference_matcher = make<NamedCharacterReferenceMatcherDafsa>();
+        break;
+    case HTMLTokenizer::NamedCharacterReferencesImplementation::DafsaBinarySearch:
+        m_named_character_reference_matcher = make<NamedCharacterReferenceMatcherDafsaBinarySearch>();
+        break;
+    case HTMLTokenizer::NamedCharacterReferencesImplementation::Blink:
+        m_named_character_reference_matcher = make<NamedCharacterReferenceMatcherBlink>();
+        break;
+    case HTMLTokenizer::NamedCharacterReferencesImplementation::Gecko:
+        m_named_character_reference_matcher = make<NamedCharacterReferenceMatcherGecko>();
+        break;
+    default:
+        VERIFY_NOT_REACHED();
+    }
 }
 
 }

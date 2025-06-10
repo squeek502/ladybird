@@ -473,6 +473,11 @@ set(SOURCES
     HTML/Parser/HTMLParser.cpp
     HTML/Parser/HTMLToken.cpp
     HTML/Parser/HTMLTokenizer.cpp
+    HTML/Parser/BlinkEntityParser.cpp
+    HTML/Parser/BlinkEntitySearch.cpp
+    HTML/Parser/BlinkEntityTable.cpp
+    HTML/Parser/GeckoNamedCharacters.cpp
+    HTML/Parser/GeckoNamedCharactersAccel.cpp
     HTML/Parser/ListOfActiveFormattingElements.cpp
     HTML/Parser/StackOfOpenElements.cpp
     HTML/Path2D.cpp
@@ -964,6 +969,7 @@ set(GENERATED_SOURCES
     Worker/WebWorkerClientEndpoint.h
     Worker/WebWorkerServerEndpoint.h
     HTML/Parser/NamedCharacterReferences.cpp
+    HTML/Parser/NamedCharacterReferencesBinarySearch.cpp
 )
 
 serenity_lib(LibWeb web)

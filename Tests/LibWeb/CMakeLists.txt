@@ -15,6 +15,41 @@ foreach(source IN LISTS TEST_SOURCES)
     serenity_test("${source}" LibWeb LIBS LibWeb)
 endforeach()
 
+#lagom_utility(BenchHTMLTokenizer SOURCES BenchHTMLTokenizer.cpp)
+
+
+# BenchHTMLTokenizer (Zig port)
+if(EXISTS "../../Libraries/LibWeb/HTML/Parser/BlinkEntityTable.cpp")
+    # Blink
+    add_executable(BenchHTMLTokenizer BenchHTMLTokenizer.cpp ../../Libraries/LibWeb/HTML/Parser/Entities.cpp ../../Libraries/LibWeb/HTML/Parser/BlinkEntitySearch.cpp ../../Libraries/LibWeb/HTML/Parser/BlinkEntityTable.cpp)
+elseif(EXISTS "../../Libraries/LibWeb/HTML/Parser/GeckoNamedCharactersAccel.cpp")
+    # Gecko
+    add_executable(BenchHTMLTokenizer BenchHTMLTokenizer.cpp ../../Libraries/LibWeb/HTML/Parser/Entities.cpp ../../Libraries/LibWeb/HTML/Parser/GeckoNamedCharacters.cpp ../../Libraries/LibWeb/HTML/Parser/GeckoNamedCharactersAccel.cpp)
+else()
+    # Ladybird
+    add_executable(BenchHTMLTokenizer BenchHTMLTokenizer.cpp ../../Libraries/LibWeb/HTML/Parser/Entities.cpp ../../Libraries/LibWeb/HTML/Parser/NamedCharacterReferences.cpp)
+    set_source_files_properties(../../Libraries/LibWeb/HTML/Parser/NamedCharacterReferences.cpp PROPERTIES GENERATED 1)
+    add_dependencies(BenchHTMLTokenizer GenerateNamedCharacterReferences)
+endif()
+target_link_libraries(BenchHTMLTokenizer PRIVATE AK)
+
+
+
+# BenchHTMLTokenizerFile
+add_executable(BenchHTMLTokenizerFile BenchHTMLTokenizerFile.cpp)
+target_link_libraries(BenchHTMLTokenizerFile PRIVATE AK LibWeb)
+
+
+# BenchHTMLTokenizerFiles
+add_executable(BenchHTMLTokenizerFiles BenchHTMLTokenizerFiles.cpp)
+target_link_libraries(BenchHTMLTokenizerFiles PRIVATE AK LibWeb LibCore)
+
+# BenchHTMLTokenizerFilesBumpAlloc
+add_executable(BenchHTMLTokenizerFilesBumpAlloc BenchHTMLTokenizerFilesBumpAlloc.cpp)
+target_link_libraries(BenchHTMLTokenizerFilesBumpAlloc PRIVATE AK LibWeb LibCore)
+target_link_options(BenchHTMLTokenizerFilesBumpAlloc PRIVATE -Wl,--wrap=malloc -Wl,--wrap=free -Wl,--wrap=realloc)
+
+
 target_link_libraries(TestFetchURL PRIVATE LibURL)
 
 if (ENABLE_SWIFT)
