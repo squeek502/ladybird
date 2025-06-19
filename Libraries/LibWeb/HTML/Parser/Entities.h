@@ -106,6 +106,10 @@ private:
     u16 m_node_index { 0 };
     u16 m_last_matched_unique_index { 0 };
     u16 m_pending_unique_index { 0 };
+    int64_t m_padding1 { 0 };
+    int64_t m_padding2 { 0 };
+    int64_t m_padding3 { 0 };
+    int64_t m_padding4 { 0 };
 };
 
 class NamedCharacterReferenceMatcherDafsaBinarySearch : public NamedCharacterReferenceMatcher {
@@ -201,6 +205,8 @@ private:
     int32_t m_lo { 0 };
     int32_t m_hi { 0 };
     int32_t m_candidate { -1 };
+    int64_t m_padding1 { 0 };
+    int64_t m_padding2 { 0 };
 };
 
 }
