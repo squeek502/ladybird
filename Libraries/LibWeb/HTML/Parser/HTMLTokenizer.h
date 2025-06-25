@@ -124,7 +124,7 @@ public:
         Gecko,
         Blink,
     };
-    void set_named_character_reference_implementation(NamedCharacterReferencesImplementation impl);
+    void set_named_character_reference_implementation(NamedCharacterReferencesImplementation impl, bool lookahead);
 
     void set_parser(Badge<HTMLParser>, HTMLParser& parser) { m_parser = &parser; }
 
@@ -221,6 +221,7 @@ private:
     StringBuilder m_current_builder;
 
     OwnPtr<NamedCharacterReferenceMatcher> m_named_character_reference_matcher;
+    bool m_named_character_reference_lookahead { false };
 
     Optional<ByteString> m_last_emitted_start_tag_name;
 

@@ -1700,12 +1700,33 @@ _StartOfFunction:
             // 13.2.5.73 Named character reference state, https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
             BEGIN_STATE(NamedCharacterReference)
             {
-                if (current_input_character.has_value()) {
-                    if (m_named_character_reference_matcher->try_consume_code_point(current_input_character.value())) {
-                        m_temporary_buffer.append(current_input_character.value());
-                        continue;
-                    } else {
+                if (m_named_character_reference_lookahead && stop_at_insertion_point == StopAtInsertionPoint::No) {
+                    auto starting_consumed_count = m_temporary_buffer.size();
+                    size_t byte_offset = m_utf8_view.byte_offset_of(m_prev_utf8_iterator);
+                    auto remaining_source = m_decoded_input.substring_view(byte_offset, m_decoded_input.length() - byte_offset);
+
+                    for (const auto& c : remaining_source) {
+                        if (m_named_character_reference_matcher->try_consume_ascii_char(c)) {
+                            m_temporary_buffer.append(current_input_character.value());
+                        } else {
+                            break;
+                        }
+                    }
+
+                    auto num_consumed = m_temporary_buffer.size() - starting_consumed_count;
+                    if (num_consumed == 0) {
                         DONT_CONSUME_NEXT_INPUT_CHARACTER;
+                    } else {
+                        skip(num_consumed - 1);
+                    }
+                } else {
+                    if (current_input_character.has_value()) {
+                        if (m_named_character_reference_matcher->try_consume_code_point(current_input_character.value())) {
+                            m_temporary_buffer.append(current_input_character.value());
+                            continue;
+                        } else {
+                            DONT_CONSUME_NEXT_INPUT_CHARACTER;
+                        }
                     }
                 }
 
@@ -2970,7 +2991,8 @@ String HTMLTokenizer::consume_current_builder()
     return string;
 }
 
-void HTMLTokenizer::set_named_character_reference_implementation(HTMLTokenizer::NamedCharacterReferencesImplementation impl) {
+void HTMLTokenizer::set_named_character_reference_implementation(HTMLTokenizer::NamedCharacterReferencesImplementation impl, bool lookahead) {
+    m_named_character_reference_lookahead = lookahead;
     m_named_character_reference_matcher.clear();
     switch (impl) {
     case HTMLTokenizer::NamedCharacterReferencesImplementation::Dafsa:
