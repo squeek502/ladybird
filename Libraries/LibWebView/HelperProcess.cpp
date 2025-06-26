@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include "LibWeb/HTML/Parser/HTMLTokenizer.h"
 #include <AK/Enumerate.h>
 #include <LibCore/Process.h>
 #include <LibWebView/Application.h>
@@ -118,6 +119,8 @@ static ErrorOr<NonnullRefPtr<WebView::WebContentClient>> launch_web_content_proc
         arguments.append("--collect-garbage-on-every-allocation"sv);
     if (web_content_options.is_headless == WebView::IsHeadless::Yes)
         arguments.append("--headless"sv);
+    if (Web::HTML::g_blink_preserve_state_default)
+        arguments.append("--blink-preserve-state"sv);
     if (web_content_options.paint_viewport_scrollbars == PaintViewportScrollbars::No)
         arguments.append("--disable-scrollbar-painting"sv);
 

@@ -14,10 +14,13 @@
 #include <AK/Utf8View.h>
 #include <LibGC/Ptr.h>
 #include <LibWeb/Forward.h>
+#include <LibWeb/HTML/Parser/BlinkEntitySearch.h>
 #include <LibWeb/HTML/Parser/Entities.h>
 #include <LibWeb/HTML/Parser/HTMLToken.h>
 
 namespace Web::HTML {
+
+extern bool g_blink_preserve_state_default;
 
 #define ENUMERATE_TOKENIZER_STATES                                        \
     __ENUMERATE_TOKENIZER_STATE(Data)                                     \
@@ -105,6 +108,7 @@ class HTMLTokenizer {
 public:
     explicit HTMLTokenizer();
     explicit HTMLTokenizer(StringView input, ByteString const& encoding);
+    ~HTMLTokenizer();
 
     enum class State {
 #define __ENUMERATE_TOKENIZER_STATE(state) state,
@@ -213,6 +217,9 @@ private:
     StringBuilder m_current_builder;
 
     size_t m_ampersand_offset { 0 };
+    bool m_blink_preserve_state;
+    NamedCharacterReferenceMatcher m_blink_matcher;
+    u8 m_blink_consumed_characters { 0 };
 
     Optional<ByteString> m_last_emitted_start_tag_name;
 

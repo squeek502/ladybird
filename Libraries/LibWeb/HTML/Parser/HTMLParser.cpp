@@ -253,6 +253,8 @@ void HTMLParser::run(const URL::URL& url, HTMLTokenizer::StopAtInsertionPoint st
     m_document->set_source(MUST(String::from_byte_string(m_tokenizer.source())));
     run(stop_at_insertion_point);
     the_end(*m_document, this);
+
+    dbgln("HTMLEntitySearch::Advance call count: {}", Web::HTML::g_blink_advance_call_count);
 }
 
 // https://html.spec.whatwg.org/multipage/parsing.html#the-end

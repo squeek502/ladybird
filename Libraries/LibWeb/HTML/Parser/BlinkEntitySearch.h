@@ -31,6 +31,8 @@
 
 namespace Web::HTML {
 
+extern u64 g_blink_advance_call_count;
+
 class HTMLEntitySearch {
  public:
   HTMLEntitySearch();

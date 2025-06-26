@@ -47,6 +47,7 @@ void Application::create_platform_arguments(Core::ArgsParser& args_parser)
     args_parser.add_option(per_test_timeout_in_seconds, "Per-test timeout (default: 30)", "per-test-timeout", 't', "seconds");
     args_parser.add_option(width, "Set viewport width in pixels (default: 800)", "width", 'W', "pixels");
     args_parser.add_option(height, "Set viewport height in pixels (default: 600)", "height", 'H', "pixels");
+    args_parser.add_option(blink_preserve_state, "Preserve state across named character reference tokenization", "blink-preserve-state");
 
     args_parser.add_option(Core::ArgsParser::Option {
         .argument_mode = Core::ArgsParser::OptionArgumentMode::Optional,

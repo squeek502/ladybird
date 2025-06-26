@@ -30,6 +30,7 @@
 #include <AK/Assertions.h>
 #include <AK/Types.h>
 #include <AK/Array.h>
+#include <LibWeb/HTML/Parser/BlinkEntitySearch.h>
 
 namespace Web::HTML {
 

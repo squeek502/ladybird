@@ -19,6 +19,8 @@
 
 namespace Web::HTML {
 
+bool g_blink_preserve_state_default = false;
+
 #pragma GCC diagnostic ignored "-Wunused-label"
 
 #define CONSUME_NEXT_INPUT_CHARACTER \
@@ -1681,6 +1683,10 @@ _StartOfFunction:
                 ON_ASCII_ALPHANUMERIC
                 {
                     m_ampersand_offset = m_utf8_view.byte_offset_of(m_prev_utf8_iterator);
+                    if (m_blink_preserve_state) {
+                        m_blink_matcher = {};
+                        m_blink_consumed_characters = 0;
+                    }
                     RECONSUME_IN(NamedCharacterReference);
                 }
                 ON('#')
@@ -1699,60 +1705,108 @@ _StartOfFunction:
             // 13.2.5.73 Named character reference state, https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
             BEGIN_STATE(NamedCharacterReference)
             {
-                DecodedHTMLEntity decoded_entity;
-                bool not_enough_characters = false;
-                size_t entity_length = 0;
-                size_t overconsumed_characters = 0;
-                bool success = false;
-                size_t available_source_length = m_decoded_input.length();
-                if (stop_at_insertion_point == StopAtInsertionPoint::Yes && m_insertion_point.defined) {
-                    available_source_length = m_insertion_point.position;
-                }
-                VERIFY(available_source_length >= m_ampersand_offset);
-                auto remaining_source = m_decoded_input.substring_view(m_ampersand_offset, available_source_length - m_ampersand_offset);
-                auto at_eof = !current_input_character.has_value();
-                
-                success = ConsumeHTMLEntity(remaining_source, decoded_entity, at_eof, not_enough_characters, entity_length, overconsumed_characters);
-                if (not_enough_characters) {
-                    continue;
-                }
-
-                auto current_byte_offset = m_utf8_view.byte_offset_of(m_utf8_iterator);
-                auto after_entity_offset = m_ampersand_offset + entity_length;
-                if (after_entity_offset > current_byte_offset) {
-                    skip(after_entity_offset - current_byte_offset);
-                } else if (after_entity_offset < current_byte_offset) {
-                    restore_to(m_utf8_view.iterator_at_byte_offset_without_validation(after_entity_offset));
-                }
-
-                if (success) {
-                    auto entity_slice = remaining_source.substring_view(0, entity_length);
-                    for (auto it = entity_slice.begin(); it != entity_slice.end(); it++) {
-                        m_temporary_buffer.append(*it);
+                if (!m_blink_preserve_state) {
+                    DecodedHTMLEntity decoded_entity;
+                    bool not_enough_characters = false;
+                    size_t entity_length = 0;
+                    size_t overconsumed_characters = 0;
+                    bool success = false;
+                    size_t available_source_length = m_decoded_input.length();
+                    if (stop_at_insertion_point == StopAtInsertionPoint::Yes && m_insertion_point.defined) {
+                        available_source_length = m_insertion_point.position;
+                    }
+                    VERIFY(available_source_length >= m_ampersand_offset);
+                    auto remaining_source = m_decoded_input.substring_view(m_ampersand_offset, available_source_length - m_ampersand_offset);
+                    auto at_eof = !current_input_character.has_value();
+                    
+                    success = ConsumeHTMLEntity(remaining_source, decoded_entity, at_eof, not_enough_characters, entity_length, overconsumed_characters);
+                    if (not_enough_characters) {
+                        continue;
                     }
 
-                    if (consumed_as_part_of_an_attribute() && !entity_slice.ends_with(';')) {
-                        auto next_code_point = peek_code_point(0, stop_at_insertion_point);
-                        if (next_code_point.has_value() && (next_code_point.value() == '=' || is_ascii_alphanumeric(next_code_point.value()))) {
-                            FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
-                            SWITCH_TO_RETURN_STATE;
+                    auto current_byte_offset = m_utf8_view.byte_offset_of(m_utf8_iterator);
+                    auto after_entity_offset = m_ampersand_offset + entity_length;
+                    if (after_entity_offset > current_byte_offset) {
+                        skip(after_entity_offset - current_byte_offset);
+                    } else if (after_entity_offset < current_byte_offset) {
+                        restore_to(m_utf8_view.iterator_at_byte_offset_without_validation(after_entity_offset));
+                    }
+
+                    if (success) {
+                        auto entity_slice = remaining_source.substring_view(0, entity_length);
+                        for (auto it = entity_slice.begin(); it != entity_slice.end(); it++) {
+                            m_temporary_buffer.append(*it);
+                        }
+
+                        if (consumed_as_part_of_an_attribute() && !entity_slice.ends_with(';')) {
+                            auto next_code_point = peek_code_point(0, stop_at_insertion_point);
+                            if (next_code_point.has_value() && (next_code_point.value() == '=' || is_ascii_alphanumeric(next_code_point.value()))) {
+                                FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
+                                SWITCH_TO_RETURN_STATE;
+                            }
+                        }
+
+                        if (!entity_slice.ends_with(';')) {
+                            log_parse_error();
+                        }
+
+                        m_temporary_buffer.clear_with_capacity();
+                        for (unsigned i = 0; i < decoded_entity.length; ++i)
+                          m_temporary_buffer.append(decoded_entity.data[i]);
+
+                        FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
+                        SWITCH_TO_RETURN_STATE;
+                    } else {
+                        FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
+                        SWITCH_TO_WITH_UNCLEAN_BUILDER(AmbiguousAmpersand);
+                    }
+                } else {
+                    if (current_input_character.has_value()) {
+                        if (m_blink_matcher.try_consume_code_point(current_input_character.value())) {
+                            m_temporary_buffer.append(current_input_character.value());
+                            continue;
+                        } else {
+                            DONT_CONSUME_NEXT_INPUT_CHARACTER;
                         }
                     }
 
-                    if (!entity_slice.ends_with(';')) {
-                        log_parse_error();
+                    auto overconsumed_code_points = m_blink_matcher.overconsumed_code_points();
+                    if (overconsumed_code_points > 0) {
+                        auto current_byte_offset = m_utf8_view.byte_offset_of(m_utf8_iterator);
+                        // All consumed code points during character reference matching are guaranteed to be
+                        // within the ASCII range, so they are always 1 byte wide.
+                        restore_to(m_utf8_view.iterator_at_byte_offset_without_validation(current_byte_offset - overconsumed_code_points));
+                        m_temporary_buffer.resize_and_keep_capacity(m_temporary_buffer.size() - overconsumed_code_points);
                     }
 
-                    m_temporary_buffer.clear_with_capacity();
-                    for (unsigned i = 0; i < decoded_entity.length; ++i)
-                      m_temporary_buffer.append(decoded_entity.data[i]);
+                    auto mapped_codepoints = m_blink_matcher.code_points();
+                    // If there is a match
+                    if (mapped_codepoints.has_value()) {
+                        if (consumed_as_part_of_an_attribute() && !m_blink_matcher.last_match_ends_with_semicolon()) {
+                            auto next_code_point = peek_code_point(0, stop_at_insertion_point);
+                            if (next_code_point.has_value() && (next_code_point.value() == '=' || is_ascii_alphanumeric(next_code_point.value()))) {
+                                FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
+                                SWITCH_TO_RETURN_STATE;
+                            }
+                        }
+                        if (!m_blink_matcher.last_match_ends_with_semicolon()) {
+                            log_parse_error();
+                        }
+                        m_temporary_buffer.clear_with_capacity();
 
-                    FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
-                    SWITCH_TO_RETURN_STATE;
-                } else {
-                    FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
-                    SWITCH_TO_WITH_UNCLEAN_BUILDER(AmbiguousAmpersand);
+                        m_temporary_buffer.append(mapped_codepoints.value().first);
+                        auto second_codepoint = named_character_reference_second_codepoint_value(mapped_codepoints.value().second);
+                        if (second_codepoint.has_value()) {
+                            m_temporary_buffer.append(second_codepoint.value());
+                        }
+                        FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
+                        SWITCH_TO_RETURN_STATE;
+                    } else {
+                        FLUSH_CODEPOINTS_CONSUMED_AS_A_CHARACTER_REFERENCE;
+                        SWITCH_TO_WITH_UNCLEAN_BUILDER(AmbiguousAmpersand);
+                    }
                 }
+
             }
             END_STATE
 
@@ -2867,6 +2921,7 @@ HTMLTokenizer::HTMLTokenizer()
     m_utf8_iterator = m_utf8_view.begin();
     m_prev_utf8_iterator = m_utf8_view.begin();
     m_source_positions.empend(0u, 0u);
+    m_blink_preserve_state = g_blink_preserve_state_default;
 }
 
 HTMLTokenizer::HTMLTokenizer(StringView input, ByteString const& encoding)
@@ -2878,6 +2933,11 @@ HTMLTokenizer::HTMLTokenizer(StringView input, ByteString const& encoding)
     m_utf8_iterator = m_utf8_view.begin();
     m_prev_utf8_iterator = m_utf8_view.begin();
     m_source_positions.empend(0u, 0u);
+    m_blink_preserve_state = g_blink_preserve_state_default;
+}
+
+HTMLTokenizer::~HTMLTokenizer()
+{
 }
 
 void HTMLTokenizer::insert_input_at_insertion_point(StringView input)

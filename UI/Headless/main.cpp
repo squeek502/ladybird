@@ -7,6 +7,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <LibWeb/HTML/Parser/HTMLTokenizer.h>
 #include <AK/ByteString.h>
 #include <AK/LexicalPath.h>
 #include <AK/Platform.h>
@@ -65,6 +66,9 @@ ErrorOr<int> serenity_main(Main::Arguments arguments)
 
     auto app = Ladybird::Application::create(arguments, URL::about_newtab());
     TRY(app->launch_services());
+
+    Web::HTML::g_blink_preserve_state_default = app->blink_preserve_state;
+    dbgln("set g_blink_preserve_state_default to {}", app->blink_preserve_state);
 
     Core::ResourceImplementation::install(make<Core::ResourceImplementationFile>(MUST(String::from_byte_string(app->resources_folder))));
 

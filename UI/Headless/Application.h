@@ -53,6 +53,7 @@ public:
     bool dump_failed_ref_tests { false };
     bool dump_layout_tree { false };
     bool dump_text { false };
+    bool blink_preserve_state { false };
     bool dump_gc_graph { false };
     bool is_layout_test_mode { false };
     size_t test_concurrency { 1 };

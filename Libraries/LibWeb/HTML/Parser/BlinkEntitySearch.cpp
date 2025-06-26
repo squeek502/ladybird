@@ -117,7 +117,10 @@ static Span<const HTMLEntityTableEntry> equal_range(Span<HTMLEntityTableEntry co
   return range.slice(first.index(), 0);
 }
 
+u64 g_blink_advance_call_count = 0;
+
 void HTMLEntitySearch::Advance(u16 next_character) {
+  g_blink_advance_call_count++;
   VERIFY(IsEntityPrefix());
   if (!current_length_) {
     range_ = HTMLEntityTable::EntriesStartingWith(next_character);

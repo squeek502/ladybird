@@ -6,11 +6,36 @@
 
 #pragma once
 
+#include "LibWeb/HTML/Parser/BlinkEntitySearch.h"
 #include <AK/Optional.h>
 #include <AK/Types.h>
 #include <LibWeb/HTML/Parser/NamedCharacterReferences.h>
 
 namespace Web::HTML {
+
+static NamedCharacterReferenceSecondCodepoint get_second_codepoint_enum(u32 codepoint)
+{
+    switch (codepoint) {
+    case 0x0338:
+        return NamedCharacterReferenceSecondCodepoint::CombiningLongSolidusOverlay;
+    case 0x20D2:
+        return NamedCharacterReferenceSecondCodepoint::CombiningLongVerticalLineOverlay;
+    case 0x200A:
+        return NamedCharacterReferenceSecondCodepoint::HairSpace;
+    case 0x0333:
+        return NamedCharacterReferenceSecondCodepoint::CombiningDoubleLowLine;
+    case 0x20E5:
+        return NamedCharacterReferenceSecondCodepoint::CombiningReverseSolidusOverlay;
+    case 0xFE00:
+        return NamedCharacterReferenceSecondCodepoint::VariationSelector1;
+    case 0x006A:
+        return NamedCharacterReferenceSecondCodepoint::LatinSmallLetterJ;
+    case 0x0331:
+        return NamedCharacterReferenceSecondCodepoint::CombiningMacronBelow;
+    default:
+        return NamedCharacterReferenceSecondCodepoint::None;
+    }
+}
 
 class NamedCharacterReferenceMatcher {
 public:
@@ -31,20 +56,21 @@ public:
     // Otherwise, the `node_index` is unchanged and the function returns false.
     bool try_consume_ascii_char(u8 c);
 
-    // Returns true if the current `node_index` is marked as the end of a word
-    bool currently_matches() const { return named_character_reference_is_end_of_word(m_node_index); }
-
     // Returns the code points associated with the last match, if any.
-    Optional<NamedCharacterReferenceCodepoints> code_points() const { return named_character_reference_codepoints_from_unique_index(m_last_matched_unique_index); }
+    Optional<NamedCharacterReferenceCodepoints> code_points() const { 
+        if (m_search.MostRecentMatch() != NULL) {
+            const auto *match = m_search.MostRecentMatch();
+            return NamedCharacterReferenceCodepoints{ match->first_value, get_second_codepoint_enum(match->second_value) };
+        }
+        return {};
+    }
 
     bool last_match_ends_with_semicolon() const { return m_ends_with_semicolon; }
 
     u8 overconsumed_code_points() const { return m_overconsumed_code_points; }
 
 private:
-    u16 m_node_index { 0 };
-    u16 m_last_matched_unique_index { 0 };
-    u16 m_pending_unique_index { 0 };
+    HTMLEntitySearch m_search;
     u8 m_overconsumed_code_points { 0 };
     bool m_ends_with_semicolon { false };
 };
