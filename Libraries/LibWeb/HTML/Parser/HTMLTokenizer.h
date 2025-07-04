@@ -148,6 +148,8 @@ public:
         m_insertion_point.position = m_current_offset;
     }
 
+    void set_never_lookahead(bool never_lookahead) { m_never_lookahead = never_lookahead; }
+
     // This permanently cuts off the tokenizer input stream.
     void abort() { m_aborted = true; }
 
@@ -212,6 +214,7 @@ private:
     StringBuilder m_current_builder;
 
     NamedCharacterReferenceMatcher m_named_character_reference_matcher;
+    bool m_never_lookahead { false };
 
     Optional<FlyString> m_last_emitted_start_tag_name;
 

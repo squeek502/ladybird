@@ -18,6 +18,9 @@ endforeach()
 
 target_link_libraries(TestFetchURL PRIVATE LibURL)
 
+add_executable(BenchHTMLTokenizer BenchHTMLTokenizer.cpp)
+target_link_libraries(BenchHTMLTokenizer PRIVATE AK LibWeb)
+
 if (ENABLE_SWIFT)
     find_package(SwiftTesting REQUIRED)
 

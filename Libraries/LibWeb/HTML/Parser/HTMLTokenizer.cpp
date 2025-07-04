@@ -1696,7 +1696,7 @@ _StartOfFunction:
             // 13.2.5.73 Named character reference state, https://html.spec.whatwg.org/multipage/parsing.html#named-character-reference-state
             BEGIN_STATE(NamedCharacterReference)
             {
-                if (stop_at_insertion_point == StopAtInsertionPoint::Yes && is_insertion_point_defined()) {
+                if (m_never_lookahead || (stop_at_insertion_point == StopAtInsertionPoint::Yes && is_insertion_point_defined())) {
                     // If there is an insertion point, match code-point-by-code-point to handle the possibility of
                     // document.write being used to insert a named character reference one-code-point-at-a-time.
                     if (current_input_character.has_value()) {
