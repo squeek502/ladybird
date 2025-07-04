@@ -36,13 +36,13 @@ struct WebKitHTMLEntityTableEntry {
     StringView nameCharacters() const;
     unsigned nameLength() const { return nameLengthExcludingSemicolon + nameIncludesTrailingSemicolon; }
 
-    unsigned firstCharacter; // All Unicode characters fit in 21 bits.
+    unsigned firstCharacter: 17; // All Unicode characters fit in 21 bits.
+    u8 nameLengthExcludingSemicolon : 5;
+    bool nameIncludesTrailingSemicolon : 1;
     u16 optionalSecondCharacter; // Two-character sequences are all BMP characters.
     u16 nameCharactersOffset;
-    u8 nameLengthExcludingSemicolon;
-    bool nameIncludesTrailingSemicolon;
 };
-static_assert(sizeof(WebKitHTMLEntityTableEntry) == 12);
+static_assert(sizeof(WebKitHTMLEntityTableEntry) == 8);
 
 class WebKitHTMLEntityTable {
 public:
