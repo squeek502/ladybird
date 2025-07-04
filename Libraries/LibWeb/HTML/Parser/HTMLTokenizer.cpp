@@ -3007,6 +3007,9 @@ void HTMLTokenizer::set_named_character_reference_implementation(HTMLTokenizer::
     case HTMLTokenizer::NamedCharacterReferencesImplementation::Gecko:
         m_named_character_reference_matcher = make<NamedCharacterReferenceMatcherGecko>();
         break;
+    case HTMLTokenizer::NamedCharacterReferencesImplementation::WebKit:
+        m_named_character_reference_matcher = make<NamedCharacterReferenceMatcherWebKit>();
+        break;
     default:
         VERIFY_NOT_REACHED();
     }

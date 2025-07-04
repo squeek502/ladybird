@@ -476,6 +476,8 @@ set(SOURCES
     HTML/Parser/BlinkEntityParser.cpp
     HTML/Parser/BlinkEntitySearch.cpp
     HTML/Parser/BlinkEntityTable.cpp
+    HTML/Parser/WebKitEntitySearch.cpp
+    HTML/Parser/WebKitEntityTable.cpp
     HTML/Parser/GeckoNamedCharacters.cpp
     HTML/Parser/GeckoNamedCharactersAccel.cpp
     HTML/Parser/ListOfActiveFormattingElements.cpp

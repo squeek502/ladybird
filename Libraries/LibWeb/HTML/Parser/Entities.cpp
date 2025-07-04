@@ -81,6 +81,21 @@ bool NamedCharacterReferenceMatcherBlink::try_consume_ascii_char(u8 c)
     return true;
 }
 
+bool NamedCharacterReferenceMatcherWebKit::try_consume_ascii_char(u8 c)
+{
+    m_search.advance(c);
+    if (!m_search.isEntityPrefix())
+        return false;
+
+    m_overconsumed_code_points++;
+
+    if (m_search.match() && m_search.match()->nameLength() == m_search.currentLength()) {
+        m_ends_with_semicolon = c == ';';
+        m_overconsumed_code_points = 0;
+    }
+    return true;
+}
+
 bool NamedCharacterReferenceMatcherGecko::try_consume_ascii_char(u8 c)
 {
     switch (m_state) {

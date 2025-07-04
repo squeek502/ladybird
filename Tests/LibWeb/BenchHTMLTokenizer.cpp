@@ -53,6 +53,11 @@ int main(int argc, char* argv[]) {
         } else if (strcmp(argv[1], "blink-lookahead") == 0) {
             impl = Tokenizer::NamedCharacterReferencesImplementation::Blink;
             lookahead = true;
+        } else if (strcmp(argv[1], "webkit") == 0) {
+            impl = Tokenizer::NamedCharacterReferencesImplementation::WebKit;
+        } else if (strcmp(argv[1], "webkit-lookahead") == 0) {
+            impl = Tokenizer::NamedCharacterReferencesImplementation::WebKit;
+            lookahead = true;
         }
     }
     if (argc > 2) {
@@ -65,7 +70,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    StringView impl_names[] = { "Dafsa"sv, "DafsaBinarySearch"sv, "Gecko"sv, "Blink"sv };
+    StringView impl_names[] = { "Dafsa"sv, "DafsaBinarySearch"sv, "Gecko"sv, "Blink"sv, "WebKit"sv };
     dbgln("{}", impl_names[(size_t)impl]);
 
     ByteString contents { case_to_test.bytes() };

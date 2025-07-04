@@ -123,6 +123,7 @@ public:
         DafsaBinarySearch,
         Gecko,
         Blink,
+        WebKit,
     };
     void set_named_character_reference_implementation(NamedCharacterReferencesImplementation impl, bool lookahead);
 

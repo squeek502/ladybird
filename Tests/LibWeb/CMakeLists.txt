@@ -25,6 +25,8 @@ add_executable(BenchMatcher
     ../../Libraries/LibWeb/HTML/Parser/GeckoNamedCharactersAccel.cpp
     ../../Libraries/LibWeb/HTML/Parser/BlinkEntitySearch.cpp
     ../../Libraries/LibWeb/HTML/Parser/BlinkEntityTable.cpp
+    ../../Libraries/LibWeb/HTML/Parser/WebKitEntitySearch.cpp
+    ../../Libraries/LibWeb/HTML/Parser/WebKitEntityTable.cpp
 )
 set_source_files_properties(../../Libraries/LibWeb/HTML/Parser/NamedCharacterReferencesBinarySearch.cpp PROPERTIES GENERATED 1)
 set_source_files_properties(../../Libraries/LibWeb/HTML/Parser/NamedCharacterReferences.cpp PROPERTIES GENERATED 1)

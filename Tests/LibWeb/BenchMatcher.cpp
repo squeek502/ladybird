@@ -118,6 +118,7 @@ int main(int argc, char* argv[]) {
     Web::HTML::NamedCharacterReferenceMatcherDafsaBinarySearch dafsa_binary_search;
     Web::HTML::NamedCharacterReferenceMatcherGecko gecko;
     Web::HTML::NamedCharacterReferenceMatcherBlink blink;
+    Web::HTML::NamedCharacterReferenceMatcherWebKit webkit;
     Web::HTML::NamedCharacterReferenceMatcher* matcher = &dafsa;
     if (argc > 1) {
         if (strcmp(argv[1], "dafsa") == 0) {
@@ -128,6 +129,8 @@ int main(int argc, char* argv[]) {
             matcher = &gecko;
         } else if (strcmp(argv[1], "blink") == 0) {
             matcher = &blink;
+        } else if (strcmp(argv[1], "webkit") == 0) {
+            matcher = &webkit;
         }
     }
 

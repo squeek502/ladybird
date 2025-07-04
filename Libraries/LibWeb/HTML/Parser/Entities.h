@@ -14,6 +14,7 @@
 #include <LibWeb/HTML/Parser/NamedCharacterReferencesBinarySearch.h>
 #include <LibWeb/HTML/Parser/GeckoNamedCharacters.h>
 #include <LibWeb/HTML/Parser/BlinkEntitySearch.h>
+#include <LibWeb/HTML/Parser/WebKitEntitySearch.h>
 
 namespace Web::HTML {
 
@@ -111,6 +112,7 @@ private:
     int64_t m_padding3 { 0 };
     int64_t m_padding4 { 0 };
 };
+static_assert(sizeof(NamedCharacterReferenceMatcherDafsa) == 48);
 
 class NamedCharacterReferenceMatcherDafsaBinarySearch : public NamedCharacterReferenceMatcher {
 public:
@@ -136,6 +138,7 @@ private:
     u16 m_last_matched_unique_index { 0 };
     u16 m_pending_unique_index { 0 };
 };
+static_assert(sizeof(NamedCharacterReferenceMatcherDafsaBinarySearch) == 48);
 
 class NamedCharacterReferenceMatcherBlink : public NamedCharacterReferenceMatcher {
 public:
@@ -161,7 +164,33 @@ public:
 private:
     HTMLEntitySearch m_search;
 };
+static_assert(sizeof(NamedCharacterReferenceMatcherBlink) == 48);
 
+class NamedCharacterReferenceMatcherWebKit : public NamedCharacterReferenceMatcher {
+public:
+    NamedCharacterReferenceMatcherWebKit() = default;
+
+    Optional<NamedCharacterReferenceCodepoints> code_points() const override {
+        if (m_search.match() != nullptr) {
+            const auto *match = m_search.match();
+            return NamedCharacterReferenceCodepoints{ match->firstCharacter, get_second_codepoint_enum(match->optionalSecondCharacter) };
+        }
+        return {};
+    }
+
+    bool try_consume_ascii_char(u8 c) override;
+
+    StringView name() const override { return "WebKit"sv; }
+
+    void reset() override {
+        m_search = {};
+        NamedCharacterReferenceMatcher::reset();
+    }
+
+private:
+    WebKitHTMLEntitySearch m_search;
+};
+static_assert(sizeof(NamedCharacterReferenceMatcherWebKit) == 48);
 
 class NamedCharacterReferenceMatcherGecko : public NamedCharacterReferenceMatcher {
 public:
@@ -208,5 +237,6 @@ private:
     int64_t m_padding1 { 0 };
     int64_t m_padding2 { 0 };
 };
+static_assert(sizeof(NamedCharacterReferenceMatcherGecko) == 48);
 
 }
