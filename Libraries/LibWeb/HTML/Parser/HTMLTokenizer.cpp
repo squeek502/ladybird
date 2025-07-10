@@ -1677,7 +1677,9 @@ _StartOfFunction:
 
                 ON_ASCII_ALPHANUMERIC
                 {
+                    auto use_old = m_named_character_reference_matcher.m_use_old_implementation;
                     m_named_character_reference_matcher = {};
+                    m_named_character_reference_matcher.m_use_old_implementation = use_old;
                     RECONSUME_IN(NamedCharacterReference);
                 }
                 ON('#')

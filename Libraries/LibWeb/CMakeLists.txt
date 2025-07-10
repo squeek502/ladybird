@@ -513,6 +513,7 @@ set(SOURCES
     HTML/OffscreenCanvasRenderingContext2D.cpp
     HTML/PageTransitionEvent.cpp
     HTML/Parser/Entities.cpp
+    HTML/Parser/NamedCharacterReferencesOld.cpp
     HTML/Parser/HTMLEncodingDetection.cpp
     HTML/Parser/HTMLParser.cpp
     HTML/Parser/HTMLToken.cpp

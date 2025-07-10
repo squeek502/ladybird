@@ -151,6 +151,8 @@ public:
     // This permanently cuts off the tokenizer input stream.
     void abort() { m_aborted = true; }
 
+    void set_named_character_reference_implementation(bool use_old) { m_named_character_reference_matcher.m_use_old_implementation = use_old; }
+
 private:
     void skip(size_t count);
     Optional<u32> next_code_point(StopAtInsertionPoint);

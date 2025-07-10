@@ -18,6 +18,20 @@ endforeach()
 
 target_link_libraries(TestFetchURL PRIVATE LibURL)
 
+# BenchHTMLTokenizer (Zig port)
+add_executable(BenchMatcher
+    BenchMatcher.cpp
+    ../../Libraries/LibWeb/HTML/Parser/Entities.cpp
+    ../../Libraries/LibWeb/HTML/Parser/NamedCharacterReferences.cpp
+    ../../Libraries/LibWeb/HTML/Parser/NamedCharacterReferencesOld.cpp
+)
+set_source_files_properties(../../Libraries/LibWeb/HTML/Parser/NamedCharacterReferences.cpp PROPERTIES GENERATED 1)
+add_dependencies(BenchMatcher GenerateNamedCharacterReferences)
+target_link_libraries(BenchMatcher PRIVATE AK)
+
+add_executable(BenchHTMLTokenizer BenchHTMLTokenizer.cpp)
+target_link_libraries(BenchHTMLTokenizer PRIVATE AK LibWeb)
+
 if (ENABLE_SWIFT)
     find_package(SwiftTesting REQUIRED)
 

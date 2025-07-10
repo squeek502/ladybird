@@ -38,6 +38,8 @@ public:
 
     u8 overconsumed_code_points() const { return m_overconsumed_code_points; }
 
+    bool m_use_old_implementation { false };
+    
 private:
     enum class SearchStateTag : u8 {
         Init,
@@ -55,6 +57,8 @@ private:
     u16 m_pending_unique_index { 0 };
     u8 m_overconsumed_code_points { 0 };
     bool m_ends_with_semicolon { false };
+
+    u16 m_node_index { 0 };
 };
 
 }
